@@ -190,6 +190,27 @@ ssh ubuntu@<IP-worker> sudo systemctl status k3s-agent
 terraform -chdir=terraform destroy
 ```
 
+## Hidupkan Cluster Setelah Mati
+
+VM **tidak autostart** (sengaja, agar host harian tidak kehabisan RAM). Setelah host reboot atau VM dimatikan, nyalakan manual. Wajib pakai `-c qemu:///system`, karena `virsh` polos bisa default ke `qemu:///session` dan tidak melihat VM ini.
+
+```bash
+# 1. nyalakan network dulu, lalu kedua VM
+virsh -c qemu:///system net-start k3s-network
+virsh -c qemu:///system start k3s-node-1
+virsh -c qemu:///system start k3s-node-2
+
+# 2. cek sudah jalan
+virsh -c qemu:///system list
+
+# 3. tunggu ~1 menit, lalu cek cluster dari master
+ssh ubuntu@192.168.100.10 kubectl get nodes
+```
+
+Tips: set sekali `export LIBVIRT_DEFAULT_URI=qemu:///system` agar tidak perlu menulis `-c` berulang.
+
+Kalau `net-start` bilang network sudah aktif, lewati saja. Kalau node tidak muncul di `kubectl get nodes` setelah beberapa saat, cek service: `ssh ubuntu@<IP> sudo systemctl status k3s` (master) atau `k3s-agent` (worker).
+
 ## Troubleshooting
 
 | Masalah | Penyebab / Solusi |

@@ -1,0 +1,98 @@
+---
+- name: Install Docker on all nodes
+  hosts: k3s_cluster
+  become: true
+  handlers:
+    - name: Restart docker
+      ansible.builtin.systemd:
+        name: docker
+        state: restarted
+  tasks:
+    - name: Check if docker is installed
+      ansible.builtin.stat:
+        path: /usr/bin/docker
+      register: docker_bin
+
+    - name: Install docker.io
+      ansible.builtin.apt:
+        name: docker.io
+        state: present
+        update_cache: true
+      when: not docker_bin.stat.exists
+
+    - name: Use systemd cgroup driver (match kubelet)
+      ansible.builtin.copy:
+        dest: /etc/docker/daemon.json
+        content: |
+          {
+            "exec-opts": ["native.cgroupdriver=systemd"]
+          }
+      notify: Restart docker
+
+    - name: Enable and start docker
+      ansible.builtin.systemd:
+        name: docker
+        enabled: true
+        state: started
+
+- name: Install k3s server (master)
+  hosts: servers
+  become: true
+  tasks:
+    - name: Check if k3s is installed
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_bin
+
+    - name: Install k3s server
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | K3S_TOKEN="{{ k3s_token }}" sh -s - server \
+          --disable traefik \
+          --disable servicelb \
+          --docker \
+          --write-kubeconfig-mode 644
+      args:
+        executable: /bin/bash
+      when: not k3s_bin.stat.exists
+
+    - name: Wait for k3s API to be ready
+      ansible.builtin.command: /usr/local/bin/k3s kubectl get --raw /readyz
+      register: k3s_ready
+      until: k3s_ready.rc == 0
+      retries: 30
+      delay: 5
+      changed_when: false
+
+- name: Install k3s agent (worker)
+  hosts: agents
+  become: true
+  pre_tasks:
+    - name: Wait for master API to be reachable
+      ansible.builtin.wait_for:
+        host: "{{ k3s_server_host }}"
+        port: 6443
+        timeout: 300
+  tasks:
+    - name: Check if k3s is installed
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_bin
+
+    - name: Install k3s agent
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | \
+          K3S_URL="https://{{ k3s_server_host }}:6443" \
+          K3S_TOKEN="{{ k3s_token }}" \
+          sh -s - agent --docker
+      args:
+        executable: /bin/bash
+      when: not k3s_bin.stat.exists
+
+- name: Verify cluster
+  hosts: servers
+  become: true
+  tasks:
+    - name: Wait for all nodes to be Ready
+      ansible.builtin.command: >-
+        /usr/local/bin/k3s kubectl wait --for=condition=Ready node --all --timeout=300s
+      changed_when: false

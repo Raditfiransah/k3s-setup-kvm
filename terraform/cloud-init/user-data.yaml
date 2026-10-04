@@ -1,0 +1,28 @@
+#cloud-config
+
+hostname: ${hostname}
+manage_etc_hosts: true
+
+users:
+  - name: ${username}
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    groups:
+      - sudo
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ${ssh_key}
+
+package_update: true
+
+packages:
+  - qemu-guest-agent
+  - curl
+  - vim
+  - git
+  - htop
+  - net-tools
+
+runcmd:
+  - systemctl enable --now qemu-guest-agent
+
+final_message: "Cloud-init completed for ${hostname}"

@@ -1,0 +1,14 @@
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/crash.log
+terraform/terraform.tfvars
+
+# Ansible
+ansible/inventory.ini
+ansible/group_vars/all/secrets.yml
+
+# OS / editor
+.DS_Store
+*.swp

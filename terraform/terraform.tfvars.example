@@ -1,0 +1,17 @@
+libvirt_uri = "qemu:///system"
+
+vm_name_prefix = "k3s-node"
+
+server_count = 1
+agent_count  = 1
+
+memory = 4096
+vcpu   = 2
+
+disk_size = 21474836480
+
+node_ip_start = 10
+
+ssh_username = "ubuntu"
+
+ssh_public_key = "ssh-ed25519 AAAA... your-key here"
